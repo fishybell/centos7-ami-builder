@@ -1,7 +1,10 @@
 #!/bin/bash
 
+SCRIPT_DIR=$(dirname $0)
 REQUIRED_RPMS=(yum-plugin-fastestmirror ruby ruby-devel kpartx)
-CFG_FILE=$HOME/.centos-ami-builder
+CFG_FILE=$SCRIPT_DIR/.centos-ami-builder
+REPO_FILE=$SCRIPT_DIR/fedora25.repo
+YUM_EXTRA="--disablerepo=google-chrome"
 
 ## Builder functions ########################################################
 
@@ -27,14 +30,10 @@ build_ami() {
 # Determine what device our root partition is mounted on, and get its UUID
 get_root_device() {
 	read ROOT_DEV ROOT_FS_TYPE <<< $(awk '/^\/dev[^ ]+ \/ / {print $1" "$3}' /proc/mounts)
-	[[ $ROOT_FS_TYPE == "xfs" ]] || fatal "Root file system on build host must be XFS (is $ROOT_FS_TYPE)"
+	#[[ $ROOT_FS_TYPE == "xfs" ]] || fatal "Root file system on build host must be XFS (is $ROOT_FS_TYPE)"
+
 	ROOT_UUID=$(/sbin/blkid -o value -s UUID $ROOT_DEV)
 	echo "Build host root device: $ROOT_DEV, UUID: $ROOT_UUID"
-}
-
-
-# Create the build hierarchy.  Unmount existing paths first, if need by
-make_build_dirs() {
 
 	AMI_ROOT="$BUILD_ROOT/$AMI_NAME"
 	AMI_IMG="$AMI_ROOT/$AMI_NAME.img"
@@ -44,6 +43,11 @@ make_build_dirs() {
 	AMI_DEV=hda
 	AMI_DEV_PATH=/dev/mapper/$AMI_DEV
 	AMI_PART_PATH=${AMI_DEV_PATH}1
+}
+
+
+# Create the build hierarchy.  Unmount existing paths first, if need by
+make_build_dirs() {
 
 	output "Creating build hierarchy in $AMI_ROOT..."
 
@@ -96,15 +100,23 @@ make_img_file() {
 		# Create a device mapper volume from our loop dev
 		DM_SIZE=$(($AMI_SIZE * 2048))
 		DEV_NUMS=$(cat /sys/block/$(basename $LOOP_DEV)/dev)
+output "Executing: dmsetup create $AMI_DEV <<< \"0 $DM_SIZE linear $DEV_NUMS 0\""
 		dmsetup create $AMI_DEV <<< "0 $DM_SIZE linear $DEV_NUMS 0" || \
 			fatal "Unable to define devicemapper volume $AMI_DEV_PATH"
+		udevadm settle
+#yesno "continue"
+output "Executing: kpartx -s -a $AMI_DEV_PATH"
 		kpartx -s -a $AMI_DEV_PATH || \
 			fatal "Unable to read partition table from $AMI_DEV_PATH"
 		udevadm settle
+#yesno "continue"
 
 		# Create our xfs partition and clone our builder root UUID onto it
+output  "Executing: mkfs.xfs -f $AMI_PART_PATH"
 		mkfs.xfs -f $AMI_PART_PATH  || \
 			fatal "Unable to create XFS filesystem on $AMI_PART_PATH"
+#yesno "continue"
+output  "Executing: xfs_admin -U $ROOT_UUID $AMI_PART_PATH"
 		xfs_admin -U $ROOT_UUID $AMI_PART_PATH  || \
 			fatal "Unable to assign UUID '$ROOT_UUID' to $AMI_PART_PATH"
 		sync
@@ -117,13 +129,40 @@ mount_img_file()
 {
 	output "Mounting image file $AMI_IMG at $AMI_MNT..."
 
+	if [[ $AMI_TYPE == 'hvm' ]]; then
+        OLD_LOOPS=$(losetup -j $AMI_IMG | sed 's#^/dev/loop\([0-9]\+\).*#loop\1#' | paste -d' ' - -)
+        if [[ -z $OLD_LOOPS ]] ; then
+            output "Setting up loop for existing image"
+            # We're running mount_img_file without re-creating the image, run half its setup here
+            LOOP_DEV=$(losetup -f)
+            losetup $LOOP_DEV $AMI_IMG || fatal "Failed to bind $AMI_IMG to $LOOP_DEV."
+            
+            # Create a device mapper volume from our loop dev
+            DM_SIZE=$(($AMI_SIZE * 2048))
+            DEV_NUMS=$(cat /sys/block/$(basename $LOOP_DEV)/dev)
+    output "Executing: dmsetup create $AMI_DEV <<< \"0 $DM_SIZE linear $DEV_NUMS 0\""
+            dmsetup create $AMI_DEV <<< "0 $DM_SIZE linear $DEV_NUMS 0" || \
+                fatal "Unable to define devicemapper volume $AMI_DEV_PATH"
+            udevadm settle
+    #yesno "continue"
+    output "Executing: kpartx -s -a $AMI_DEV_PATH"
+            kpartx -s -a $AMI_DEV_PATH || \
+                fatal "Unable to read partition table from $AMI_DEV_PATH"
+            udevadm settle
+    #yesno "continue"
+        fi
+    fi
+
 	if [[ $AMI_TYPE == 'pv' ]]; then
 		mount -o nouuid $AMI_IMG $AMI_MNT
 	else
-		mount -o nouuid /dev/mapper/hda1 $AMI_MNT
+		mount -o nouuid /dev/mapper/${AMI_DEV}1 $AMI_MNT
 	fi
+    #output "image mounted"
+    #yesno "continue"
 
 	# Make our chroot directory hierarchy
+    [[ -z $AMI_MNT ]] && fatal "AMI_MNT undfined"
 	mkdir -p $AMI_MNT/{dev,etc,proc,sys,var/{cache,log,lock,lib/rpm}}
     rm -rf $AMI_MNT/var/{run,lock}
     mkdir ../run
@@ -158,122 +197,40 @@ install_packages() {
 	output "Installing packages into $AMI_MNT..."
 	# Create our YUM config
 	YUM_CONF=$AMI_ROOT/yum.conf
-	cat > $YUM_CONF <<-EOT
-	[main]
-	reposdir=
-	plugins=0
-
-	[base]
-	name=CentOS-7 - Base
-	mirrorlist=http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=os
-	#baseurl=http://mirror.centos.org/centos/7/os/x86_64/
-	gpgcheck=1
-	gpgkey=http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-7
-
-	#released updates
-	[updates]
-	name=CentOS-7 - Updates
-	mirrorlist=http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=updates
-	#baseurl=http://mirror.centos.org/centos/7/updates/x86_64/
-	gpgcheck=1
-	gpgkey=http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-7
-
-	#additional packages that may be useful
-	[extras]
-	name=CentOS-7 - Extras
-	mirrorlist=http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=extras
-	#baseurl=http://mirror.centos.org/centos/7/extras/x86_64/
-	gpgcheck=1
-	gpgkey=http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-7
-
-	#additional packages that extend functionality of existing packages
-	[centosplus]
-	name=CentOS-7 - Plus
-	mirrorlist=http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=centosplus
-	#baseurl=http://mirror.centos.org/centos/7/centosplus/x86_64/
-	gpgcheck=1
-	enabled=0
-	gpgkey=http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-7
-
-	#contrib - packages by Centos Users
-	[contrib]
-	name=CentOS-7 - Contrib
-	mirrorlist=http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=contrib
-	#baseurl=http://mirror.centos.org/centos/7/contrib/x86_64/
-	gpgcheck=1
-	enabled=0
-	gpgkey=http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-7
-
-	[epel]
-	name=Extra Packages for Enterprise Linux 7 - \$basearch
-	#baseurl=http://download.fedoraproject.org/pub/epel/7/\$basearch
-	mirrorlist=https://mirrors.fedoraproject.org/metalink?repo=epel-7&arch=\$basearch
-	failovermethod=priority
-	enabled=1
-	gpgcheck=0
-	gpgkey=http://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-7
-
-	[epel-debuginfo]
-	name=Extra Packages for Enterprise Linux 7 - \$basearch - Debug
-	#baseurl=http://download.fedoraproject.org/pub/epel/7/\$basearch/debug
-	mirrorlist=https://mirrors.fedoraproject.org/metalink?repo=epel-debug-7&arch=\$basearch
-	failovermethod=priority
-	enabled=0
-	gpgkey=http://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-7
-	gpgcheck=1
-
-	[epel-source]
-	name=Extra Packages for Enterprise Linux 7 - \$basearch - Source
-	#baseurl=http://download.fedoraproject.org/pub/epel/7/SRPMS
-	mirrorlist=https://mirrors.fedoraproject.org/metalink?repo=epel-source-7&arch=\$basearch
-	failovermethod=priority
-	enabled=0
-	gpgkey=http://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-7
-	gpgcheck=1
-
-	[elrepo]
-	name=ELRepo.org Community Enterprise Linux Repository - el7
-	baseurl=http://elrepo.org/linux/elrepo/el7/\$basearch/
-			http://mirrors.coreix.net/elrepo/elrepo/el7/\$basearch/
-			http://jur-linux.org/download/elrepo/elrepo/el7/\$basearch/
-			http://repos.lax-noc.com/elrepo/elrepo/el7/\$basearch/
-			http://mirror.ventraip.net.au/elrepo/elrepo/el7/\$basearch/
-	mirrorlist=http://mirrors.elrepo.org/mirrors-elrepo.el7
-	enabled=1
-	gpgcheck=1
-	gpgkey=https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
-
-	[elrepo-kernel]
-	name=ELRepo.org Community Enterprise Linux Kernel Repository - el7
-	baseurl=http://elrepo.org/linux/kernel/el7/\$basearch/
-			http://mirrors.coreix.net/elrepo/kernel/el7/\$basearch/
-			http://jur-linux.org/download/elrepo/kernel/el7/\$basearch/
-			http://repos.lax-noc.com/elrepo/kernel/el7/\$basearch/
-			http://mirror.ventraip.net.au/elrepo/kernel/el7/\$basearch/
-	mirrorlist=http://mirrors.elrepo.org/mirrors-elrepo-kernel.el7
-	enabled=1
-	gpgcheck=1
-	gpgkey=https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
-	EOT
+	cat $REPO_FILE > $YUM_CONF
 
 	# Install base pacakges
-	yum --config=$YUM_CONF --installroot=$AMI_MNT --quiet --assumeyes groupinstall Base
+	yum --config=$YUM_CONF --installroot=$AMI_MNT $YUM_EXTRA $YUM_QUIET --assumeyes groupinstall "Minimal Install" --setopt=group_package_types=mandatory,default,optional
 	[[ -f $AMI_MNT/bin/bash ]] || fatal "Failed to install base packages into $AMI_MNT"
 
 	# Install additional packages that we are definitely going to want
 	yum --config=$YUM_CONF --installroot=$AMI_MNT --assumeyes install \
-        psmisc grub2 dhclient ntp e2fsprogs sudo elrepo-release kernel-ml \
-		openssh-clients vim-minimal postfix yum-plugin-fastestmirror sysstat \
-		epel-release python-setuptools gcc make xinetd rsyslog microcode_ctl \
+        psmisc grub2 dhclient ntp e2fsprogs sudo kernel \
+		openssh-clients vim-minimal postfix tar wget sysstat \
+		python-setuptools gcc make xinetd rsyslog microcode_ctl \
 		gnupg2 bzip2 cloud-utils-growpart cloud-init openssh-server
+
+    # Install X and tools
+	yum --config=$YUM_CONF --installroot=$AMI_MNT $YUM_EXTRA $YUM_QUIET --assumeyes groupinstall "Xfce Desktop"
+	yum --config=$YUM_CONF --installroot=$AMI_MNT $YUM_EXTRA $YUM_QUIET --assumeyes groupinstall "Administration Tools"
+	yum --config=$YUM_CONF --installroot=$AMI_MNT $YUM_EXTRA $YUM_QUIET --assumeyes groupinstall "Development Tools"
 
 	# Remove unnecessary RPMS
 	yum --config=$YUM_CONF --installroot=$AMI_MNT --assumeyes erase \
 		plymouth plymouth-scripts plymouth-core-libs chrony firewalld
 
 	# Enable our required services
-	chroot $AMI_MNT /bin/systemctl -q enable rsyslog ntpd sshd cloud-init cloud-init-local \
-		cloud-config cloud-final
+	#chroot $AMI_MNT /bin/systemctl -q enable rsyslog ntpd sshd cloud-init cloud-init-local \
+	#	cloud-config cloud-final
+	#chroot $AMI_MNT /bin/systemctl -q disable NetworkManager
+    # systemctl doesn't work in chroot by design, do these manually
+    for en in rsyslog ntpd sshd cloud-init cloud-init-local cloud-config cloud-final ; do
+        ln -s "/usr/lib/systemd/system/${en}.service" "$AMI_MNT/etc/systemd/system/multi-user.target.wants/${en}.service"
+    done
+    for di in NetworkManager ; do
+        rm -f $AMI_MNT/etc/systemd/system/multi-user.target.wants/${en}.service
+    done
+
 	
 	# Create our default bashrc files
 	cat > $AMI_MNT/root/.bashrc <<-EOT
@@ -351,7 +308,7 @@ install_grub() {
 		timeout=0
 		hiddenmenu
 
-		title CentOS Linux ($AMI_KERNEL_VER) 7 (Core)
+		title Fedora ($AMI_KERNEL_VER) 25 (Core)
 				root (hd0)
 				kernel /boot/vmlinuz-$AMI_KERNEL_VER ro root=UUID=$ROOT_UUID console=hvc0 LANG=en_US.UTF-8 loglvl=all sync_console console_to_ring earlyprintk=xen plymouth.enable=0 net.ifnames=0 biosdevname=0
 				initrd /boot/initramfs-${AMI_KERNEL_VER}.img
@@ -374,6 +331,7 @@ install_grub() {
 
 		AMI_GRUB_PATH=$AMI_BOOT_PATH/grub2
 		mkdir -p $AMI_GRUB_PATH
+        [[ -z $LOOP_DEV ]] && LOOP_DEV=/dev/loop0
 		echo "(hd0) $LOOP_DEV" > $AMI_GRUB_PATH/device.map
 		chroot $AMI_MNT dracut --force --add-drivers "ixgbevf virtio" --kver $AMI_KERNEL_VER
 		chroot $AMI_MNT grub2-install --no-floppy --modules='biosdisk part_msdos ext2 xfs configfile normal multiboot' $LOOP_DEV
@@ -385,6 +343,13 @@ install_grub() {
 # Allow user to make changes to the AMI outside of the normal build process
 enter_shell() {
 	output "Entering AMI chroot; customize as needed.  Enter 'exit' to finish build."
+    output "Notes:\n
+            mv /var/lib/yum /var/lib/yum.orig\n
+            mv $AMI_MNT/var/lib/yum /var/lib\n
+            rm -rf /home/nathanb\n
+            useradd nathanb -G wheel\n
+            passwd nathanb
+            vim /etc/ssh/sshd_config ;# remove root login permission"
 	cp /etc/resolv.conf $AMI_MNT/etc
 	PS1="[${AMI_NAME}-chroot \W]# " chroot $AMI_MNT &> /dev/tty
 	rm -f $AMI_MNT/{etc/resolv.conf,root/.bash_history}
@@ -393,18 +358,22 @@ enter_shell() {
 
 # Unmount all of the mounted devices
 unmount_all() {
+output "unmounting $AMI_MNT/{dev/pts,dev/shm,dev,proc,sys,}"
+    [[ -z $AMI_MNT ]] && fatal "AMI_MNT undfined"
 	umount -ldf $AMI_MNT/{dev/pts,dev/shm,dev,proc,sys,}
 	sync
 	grep -q "^[^ ]\+ $AMI_MNT" /proc/mounts && \
 		fatal "Failed to unmount all devices mounted under $AMI_MNT!"
 
 	# Also undefine our hvm devices if they are currently set up with this image file
-	losetup | grep -q $AMI_IMG && undefine_hvm_dev
+    undefine_hvm_dev
+	#losetup | grep -q $AMI_IMG && undefine_hvm_dev
 }
 
 
 # Remove the dm volume and loop dev for an HVM image file
 undefine_hvm_dev() {
+output "undefining $AMI_DEV"
 	kpartx -d $AMI_DEV_PATH  || fatal "Unable remove partition map for $AMI_DEV_PATH"
 	sync; udevadm settle
 	dmsetup remove $AMI_DEV  || fatal "Unable to remove devmapper volume for $AMI_DEV"
@@ -422,13 +391,15 @@ bundle_ami() {
 	RUBYLIB=/usr/lib/ruby/site_ruby/ ec2-bundle-image --privatekey $AWS_PRIVATE_KEY --cert $AWS_CERT \
 		--user $AWS_USER --image $AMI_IMG --prefix $AMI_NAME --destination $AMI_OUT --arch x86_64 || \
 		fatal "Failed to bundle image!"
-	AMI_MANIFEST=$AMI_OUT/$AMI_NAME.manifest.xml
 }
 
 
 # Upload our bundle to our S3 bucket
 upload_ami() {
 	output "Uploading AMI to $AMI_S3_DIR..."
+	AMI_MANIFEST=$AMI_OUT/$AMI_NAME.manifest.xml
+	output "Executing: RUBYLIB=/usr/lib/ruby/site_ruby/ ec2-upload-bundle --bucket $AMI_S3_DIR --manifest $AMI_MANIFEST \
+		--access-key $AWS_ACCESS --secret-key $AWS_SECRET --retry --region $S3_REGION"
 	RUBYLIB=/usr/lib/ruby/site_ruby/ ec2-upload-bundle --bucket $AMI_S3_DIR --manifest $AMI_MANIFEST \
 		--access-key $AWS_ACCESS --secret-key $AWS_SECRET --retry --region $S3_REGION  || \
 		fatal "Failed to upload image!"
@@ -470,7 +441,17 @@ quit() {
 
 
 # Print a fatal message and exit
+__infatal=false
+__prevmsg=""
 fatal() {
+    if $__infatal ; then
+        output "FATAL: $__prevmsg"
+        output "DOUBLE FATAL: $1"
+        exit 1
+    fi
+    __infatal=true
+    __prevmsg=$1
+    unmount_all
 	quit "FATAL: $1"
 }
 
@@ -479,7 +460,6 @@ fatal() {
 do_setup() {
 
 	source $CFG_FILE  || get_config_opts
-	install_setup_rpms
 	setup_aws
 	sanity_check
 
@@ -512,6 +492,8 @@ get_config_opts() {
 	[default]
 	output = json
 	region = $S3_REGION
+    EOT
+	cat > $HOME/.aws/credentials <<-EOT
 	aws_access_key_id = $AWS_ACCESS
 	aws_secret_access_key = $AWS_SECRET
 	EOT
@@ -524,6 +506,7 @@ get_config_opts() {
 		eval echo $f=\"\$$f\" >> $CFG_FILE
 	done
 
+	install_setup_rpms
 }
 
 
@@ -551,7 +534,7 @@ yesno() {
 
 
 output() {
-	echo $* > /dev/tty
+	echo -e $* > /dev/tty
 }
 
 
@@ -562,7 +545,7 @@ sanity_check() {
 	# Make sure our ami size is numeric
 	[[ "$AMI_SIZE" =~ ^[0-9]+$ ]] || fatal "AMI size must be an integer!"
 	(( "$AMI_SIZE" >= 1000 )) || fatal "AMI size must be at least 1000 MB (currently $AMI_SIZE MB!)"
-    (( "$AMI_SIZE" <= 8192 )) || fatal "AMI size should be no more than 8192 (8GB)"
+    (( "$AMI_SIZE" <= 10240 )) || fatal "AMI size should be no more than 10240 (10GB)"
 
 
 	# Check for ket/cert existance
@@ -605,17 +588,17 @@ install_setup_rpms() {
 setup_aws() {
 
 	# ec2-ami-tools
-	if [[ ! -f /usr/local/bin/ec2-bundle-image ]]; then
+	if ! which ec2-bundle-image ; then
 		output "Installing EC2 AMI tools..."
 		rpm -ivh http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools-1.5.6.noarch.rpm
 	fi
 
 	# PIP (needed to install aws cli)
-	if [[ ! -f /bin/pip ]]; then
+	if ! which pip ; then
 		output "Installing PIP..."
 		easy_install pip
 	fi
-	if [[ ! -f /bin/aws ]]; then
+	if ! which aws ; then
 		output "Installing aws-cli"
 		pip install awscli
 	fi
@@ -628,7 +611,13 @@ setup_aws() {
 
 
 # Blackhole stdout of all commands unless debug mode requested
-[[ "$3" != "debug" ]] && exec &> /dev/null
+DEBUG=false
+[[ "$3" != "debug" ]] && DEBUG=true
+YUM_QUIET=--quiet
+if $DEBUG ; then
+    exec &> /dev/null
+    YUM_QUIET=""
+fi
 
 case "$1" in
 	reconfig)
@@ -648,8 +637,76 @@ case "$1" in
 		do_setup
 		build_ami
 		;;
+	step)
+        [[ -z $2 ]] && quit "Usage: $0 step HVM_NAME [debug] < make_build_dirs | make_img_file | mount_img_file | install_packages | make_fstab | setup_network | install_grub | enter_shell | unmount_all | bundle_ami | upload_ami | register_ami > ..."
+        [[ -z $3 ]] && quit "Usage: $0 step HVM_NAME [debug] < make_build_dirs | make_img_file | mount_img_file | install_packages | make_fstab | setup_network | install_grub | enter_shell | unmount_all | bundle_ami | upload_ami | register_ami > ..."
+		AMI_NAME=${2// /_}
+		AMI_TYPE=hvm
+		do_setup ;# always run these to setup vars
+        get_root_device
+        while [[ -n $3 ]] ; do
+        case "$3" in
+            make_build_dirs)
+                echo "running make_build_dirs..."
+                make_build_dirs
+                ;;
+            make_img_file)
+                echo "running make_img_file..."
+                make_img_file
+                ;;
+            mount_img_file)
+                echo "running mount_img_file..."
+                mount_img_file
+                ;;
+            install_packages)
+                echo "running install_packages..."
+                install_packages
+                ;;
+            make_fstab)
+                echo "running make_fstab..."
+                make_fstab
+                ;;
+            setup_network)
+                echo "running setup_network..."
+                setup_network
+                ;;
+            install_grub)
+                echo "running install_grub..."
+                install_grub
+                ;;
+            enter_shell)
+                echo "running enter_shell..."
+                enter_shell
+                ;;
+            unmount_all)
+                echo "running unmount_all..."
+                unmount_all
+                ;;
+            bundle_ami)
+                echo "running bundle_ami..."
+                bundle_ami
+                ;;
+            upload_ami)
+                echo "running upload_ami..."
+                upload_ami
+                ;;
+            register_ami)
+                echo "running register_ami..."
+                register_ami
+                ;;
+            debug) ;;
+            "")
+                quit "All done"
+                ;;
+            *)
+                quit "Usage: $0 step HVM_NAME < make_build_dirs | make_img_file | mount_img_file | install_packages | make_fstab | setup_network | install_grub | enter_shell | unmount_all | bundle_ami | upload_ami | register_ami > ..."
+                ;;
+        esac
+        shift
+        done ;# loop forever, or at least until we run out of params
+        ;;
 	*)
-		quit "Usage: $0 <reconfig | pv PV_NAME | hvm HVM_NAME> [debug]"
+		quit "Usage: $0 <reconfig | pv PV_NAME | hvm HVM_NAME | step STEP_NAME > [debug]"
 esac
 
 # vim: tabstop=4 shiftwidth=4 expandtab

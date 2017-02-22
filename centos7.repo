@@ -1,0 +1,95 @@
+[main]
+reposdir=
+plugins=0
+
+[base]
+name=CentOS-7 - Base
+mirrorlist=http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=os
+#baseurl=http://mirror.centos.org/centos/7/os/x86_64/
+gpgcheck=1
+gpgkey=http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-7
+
+#released updates
+[updates]
+name=CentOS-7 - Updates
+mirrorlist=http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=updates
+#baseurl=http://mirror.centos.org/centos/7/updates/x86_64/
+gpgcheck=1
+gpgkey=http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-7
+
+#additional packages that may be useful
+[extras]
+name=CentOS-7 - Extras
+mirrorlist=http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=extras
+#baseurl=http://mirror.centos.org/centos/7/extras/x86_64/
+gpgcheck=1
+gpgkey=http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-7
+
+#additional packages that extend functionality of existing packages
+[centosplus]
+name=CentOS-7 - Plus
+mirrorlist=http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=centosplus
+#baseurl=http://mirror.centos.org/centos/7/centosplus/x86_64/
+gpgcheck=1
+enabled=0
+gpgkey=http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-7
+
+#contrib - packages by Centos Users
+[contrib]
+name=CentOS-7 - Contrib
+mirrorlist=http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=contrib
+#baseurl=http://mirror.centos.org/centos/7/contrib/x86_64/
+gpgcheck=1
+enabled=0
+gpgkey=http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-7
+
+[epel]
+name=Extra Packages for Enterprise Linux 7 - \$basearch
+#baseurl=http://download.fedoraproject.org/pub/epel/7/\$basearch
+mirrorlist=https://mirrors.fedoraproject.org/metalink?repo=epel-7&arch=\$basearch
+failovermethod=priority
+enabled=1
+gpgcheck=0
+gpgkey=http://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-7
+
+[epel-debuginfo]
+name=Extra Packages for Enterprise Linux 7 - \$basearch - Debug
+#baseurl=http://download.fedoraproject.org/pub/epel/7/\$basearch/debug
+mirrorlist=https://mirrors.fedoraproject.org/metalink?repo=epel-debug-7&arch=\$basearch
+failovermethod=priority
+enabled=0
+gpgkey=http://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-7
+gpgcheck=1
+
+[epel-source]
+name=Extra Packages for Enterprise Linux 7 - \$basearch - Source
+#baseurl=http://download.fedoraproject.org/pub/epel/7/SRPMS
+mirrorlist=https://mirrors.fedoraproject.org/metalink?repo=epel-source-7&arch=\$basearch
+failovermethod=priority
+enabled=0
+gpgkey=http://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-7
+gpgcheck=1
+
+[elrepo]
+name=ELRepo.org Community Enterprise Linux Repository - el7
+baseurl=http://elrepo.org/linux/elrepo/el7/\$basearch/
+        http://mirrors.coreix.net/elrepo/elrepo/el7/\$basearch/
+        http://jur-linux.org/download/elrepo/elrepo/el7/\$basearch/
+        http://repos.lax-noc.com/elrepo/elrepo/el7/\$basearch/
+        http://mirror.ventraip.net.au/elrepo/elrepo/el7/\$basearch/
+mirrorlist=http://mirrors.elrepo.org/mirrors-elrepo.el7
+enabled=1
+gpgcheck=1
+gpgkey=https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+
+[elrepo-kernel]
+name=ELRepo.org Community Enterprise Linux Kernel Repository - el7
+baseurl=http://elrepo.org/linux/kernel/el7/\$basearch/
+        http://mirrors.coreix.net/elrepo/kernel/el7/\$basearch/
+        http://jur-linux.org/download/elrepo/kernel/el7/\$basearch/
+        http://repos.lax-noc.com/elrepo/kernel/el7/\$basearch/
+        http://mirror.ventraip.net.au/elrepo/kernel/el7/\$basearch/
+mirrorlist=http://mirrors.elrepo.org/mirrors-elrepo-kernel.el7
+enabled=1
+gpgcheck=1
+gpgkey=https://www.elrepo.org/RPM-GPG-KEY-elrepo.org

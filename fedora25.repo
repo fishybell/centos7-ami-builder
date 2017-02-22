@@ -1,0 +1,166 @@
+[fedora]
+name=Fedora 25 - $basearch
+failovermethod=priority
+#baseurl=http://download.fedoraproject.org/pub/fedora/linux/releases/25/Everything/$basearch/os/
+metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-25&arch=$basearch
+enabled=1
+metadata_expire=7d
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-25-$basearch
+skip_if_unavailable=False
+
+[fedora-debuginfo]
+name=Fedora 25 - $basearch - Debug
+failovermethod=priority
+#baseurl=http://download.fedoraproject.org/pub/fedora/linux/releases/25/Everything/$basearch/debug/
+metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-debug-25&arch=$basearch
+enabled=0
+metadata_expire=7d
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-25-$basearch
+skip_if_unavailable=False
+
+[fedora-source]
+name=Fedora 25 - Source
+failovermethod=priority
+#baseurl=http://download.fedoraproject.org/pub/fedora/linux/releases/25/Everything/source/tree/
+metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-source-25&arch=$basearch
+enabled=0
+metadata_expire=7d
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-25-$basearch
+skip_if_unavailable=False
+[updates]
+name=Fedora 25 - $basearch - Updates
+failovermethod=priority
+#baseurl=http://download.fedoraproject.org/pub/fedora/linux/updates/25/$basearch/
+metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f25&arch=$basearch
+enabled=1
+gpgcheck=1
+metadata_expire=6h
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-25-$basearch
+skip_if_unavailable=False
+
+[updates-debuginfo]
+name=Fedora 25 - $basearch - Updates - Debug
+failovermethod=priority
+#baseurl=http://download.fedoraproject.org/pub/fedora/linux/updates/25/$basearch/debug/
+metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-debug-f25&arch=$basearch
+enabled=0
+gpgcheck=1
+metadata_expire=6h
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-25-$basearch
+skip_if_unavailable=False
+
+[updates-source]
+name=Fedora 25 - Updates Source
+failovermethod=priority
+#baseurl=http://download.fedoraproject.org/pub/fedora/linux/updates/25/SRPMS/
+metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-source-f25&arch=$basearch
+enabled=0
+gpgcheck=1
+metadata_expire=6h
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-25-$basearch
+skip_if_unavailable=False
+[rpmfusion-free]
+name=RPM Fusion for Fedora 25 - Free
+#baseurl=http://download1.rpmfusion.org/free/fedora/releases/25/Everything/$basearch/os/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=free-fedora-25&arch=$basearch
+enabled=1
+metadata_expire=14d
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-free-fedora-25
+
+[rpmfusion-free-debuginfo]
+name=RPM Fusion for Fedora 25 - Free - Debug
+#baseurl=http://download1.rpmfusion.org/free/fedora/releases/25/Everything/$basearch/debug/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=free-fedora-debug-25&arch=$basearch
+enabled=0
+metadata_expire=7d
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-free-fedora-25
+
+[rpmfusion-free-source]
+name=RPM Fusion for Fedora 25 - Free - Source
+#baseurl=http://download1.rpmfusion.org/free/fedora/releases/25/Everything/source/SRPMS/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=free-fedora-source-25&arch=$basearch
+enabled=0
+metadata_expire=7d
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-free-fedora-25
+
+[rpmfusion-free-updates]
+name=RPM Fusion for Fedora 25 - Free - Updates
+#baseurl=http://download1.rpmfusion.org/free/fedora/updates/25/$basearch/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=free-fedora-updates-released-25&arch=$basearch
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-free-fedora-25
+
+[rpmfusion-free-updates-debuginfo]
+name=RPM Fusion for Fedora 25 - Free - Updates Debug
+#baseurl=http://download1.rpmfusion.org/free/fedora/updates/25/$basearch/debug/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=free-fedora-updates-released-debug-25&arch=$basearch
+enabled=0
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-free-fedora-25
+
+[rpmfusion-free-updates-source]
+name=RPM Fusion for Fedora 25 - Free - Updates Source
+#baseurl=http://download1.rpmfusion.org/free/fedora/updates/25/SRPMS/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=free-fedora-updates-released-source-25&arch=$basearch
+enabled=0
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-free-fedora-25
+
+[rpmfusion-nonfree]
+name=RPM Fusion for Fedora 25 - Nonfree
+#baseurl=http://download1.rpmfusion.org/nonfree/fedora/releases/25/Everything/$basearch/os/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=nonfree-fedora-25&arch=$basearch
+enabled=1
+metadata_expire=14d
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-nonfree-fedora-25
+
+[rpmfusion-nonfree-debuginfo]
+name=RPM Fusion for Fedora 25 - Nonfree - Debug
+#baseurl=http://download1.rpmfusion.org/nonfree/fedora/releases/25/Everything/$basearch/debug/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=nonfree-fedora-debug-25&arch=$basearch
+enabled=0
+metadata_expire=7d
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-nonfree-fedora-25
+
+[rpmfusion-nonfree-source]
+name=RPM Fusion for Fedora 25 - Nonfree - Source
+#baseurl=http://download1.rpmfusion.org/nonfree/fedora/releases/25/Everything/source/SRPMS/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=nonfree-fedora-source-25&arch=$basearch
+enabled=0
+metadata_expire=7d
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-nonfree-fedora-25
+
+[rpmfusion-nonfree-updates]
+name=RPM Fusion for Fedora 25 - Nonfree - Updates
+#baseurl=http://download1.rpmfusion.org/nonfree/fedora/updates/25/$basearch/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=nonfree-fedora-updates-released-25&arch=$basearch
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-nonfree-fedora-25
+
+[rpmfusion-nonfree-updates-debuginfo]
+name=RPM Fusion for Fedora 25 - Nonfree - Updates Debug
+#baseurl=http://download1.rpmfusion.org/nonfree/fedora/updates/25/$basearch/debug/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=nonfree-fedora-updates-released-debug-25&arch=$basearch
+enabled=0
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-nonfree-fedora-25
+
+[rpmfusion-nonfree-updates-source]
+name=RPM Fusion for Fedora 25 - Nonfree - Updates Source
+#baseurl=http://download1.rpmfusion.org/nonfree/fedora/updates/25/SRPMS/
+metalink=https://mirrors.rpmfusion.org/metalink?repo=nonfree-fedora-updates-released-source-25&arch=$basearch
+enabled=0
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rpmfusion-nonfree-fedora-25
+
